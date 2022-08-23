@@ -37,10 +37,10 @@ def parse_protobuf_file(features_path):
         synset_features.ParseFromString(data.read())
     
     mul = np.array(synset_features.multiplier, dtype=np.float32)
-    synset_features = [np.asarray(representation.features, dtype=np.float32) / mul for representation in synset_features.representations]
-    image_ids = [representation.image_id for representation in synset_features]
+    features = [np.asarray(representation.features, dtype=np.float32) / mul for representation in synset_features.representations]
+    image_ids = [representation.image_id for representation in synset_features.representations]
 
-    return synset_features, image_ids
+    return features, image_ids
 
 def init_CLIP(model_type: str='ViT-L/14@336px', device:str='cuda'):
     model, preprocess = clip.load(model_type, device=device)
@@ -63,7 +63,7 @@ def main(
     # - tar features packet with same name as the original
     # - delete image packet
 
-    # parse_protobuf_file("/home/mawanda/Documents/GoogleUniversalImageEmbedding/n00004475.pb")
+    # parse_protobuf_file("/home/mawanda/Documents/GoogleUniversalImageEmbedding/n00015388.pb")
     preprocess, extractor = init_CLIP(device=device)
 
     synset_ids = open("synset_id.txt", 'r').read().splitlines() 
