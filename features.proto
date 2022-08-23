@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package SynsetFeatures;
+
+// Protobuf uses variable-lenght integer encoding 
+// http://code.google.com/apis/protocolbuffers/docs/proto.html#scalar
+// So there is no need to worry about size on disk
+
+// Since features are 10<f<20, we need to multiply them by 1000 (and then divide)
+// So we are assured that they remain under uint16 values
+message Representation {
+    repeated int32 features = 5 [packed = true];
+    string image_id =  6;
+}
+
+message Features {
+    repeated Representation representations = 7;
+    uint32 multiplier = 9;
+}
