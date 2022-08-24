@@ -88,6 +88,12 @@ def extract_save(
                 continue
         # Process last part of batch
         imgs = [preprocess(img).to(device) for img in batch]
+
+        if len(imgs) == 0:
+            print(f"Something went wrong with {tarpath}, so we are skipping it for now...")
+            tarpath.unlink()
+            continue
+
         features.append(extractor(torch.stack(imgs)).to('cpu').numpy())
         features = np.concatenate(features, 0)
 
