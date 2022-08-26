@@ -23,30 +23,6 @@ def save_features(output_path: Path, features: Representation):
         raise Exception(e)
 
 
-def parse_protobuf_file(features_path):
-    """This method parses a file with a created protobuf.
-
-    Args:
-        features_path (str): path/to/features.pb
-
-    Returns:
-        (List, List): List of windows information and a representation for each of them.
-    """
-
-    # for features_path in feature_paths:
-    with open(features_path, 'rb') as data:
-        synset_features = Features()
-        synset_features.ParseFromString(data.read())
-
-    mul = np.array(synset_features.multiplier, dtype=np.float32)
-    features = [np.asarray(representation.features, dtype=np.float32) /
-                mul for representation in synset_features.representations]
-    image_ids = [
-        representation.image_id for representation in synset_features.representations]
-
-    return features, image_ids
-
-
 def init_CLIP(model_type: str = 'ViT-L/14@336px', device: str = 'cuda'):
     model, preprocess = clip.load(model_type, device=device)
     model = model.eval()
