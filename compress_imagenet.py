@@ -8,6 +8,7 @@ from features_pb2 import Representation, Features
 import torch
 import numpy as np
 import shutil
+from multiprocessing.pool import Pool
 
 MULTIPLIER = 10000
 
@@ -56,19 +57,35 @@ def init_CLIP(model_type: str = 'ViT-L/14@336px', device: str = 'cuda'):
     return preprocess, extractor
 
 
+def extract_tar(args):
+    tarpath, member, output_dir = args
+    tar = tarfile.open(tarpath)
+    tar.extract(member, output_dir)
+
+
 def extract_save(
-    preprocess, 
+    preprocess,
     extractor,
-    output_dir,
+    output_dir: Path,
     batch_size,
     device
 ):
     tarpaths = list(output_dir.glob("*.tar"))
     for tarpath in tqdm(tarpaths):
         # Extract image packet
-        extraction_output_dir = output_dir / Path(str(tarpath.name).split(".")[0])
+        extraction_output_dir = output_dir / \
+            Path(str(tarpath.name).split(".")[0])
         extraction_output_dir.mkdir(exist_ok=True, parents=True)
+        # Enable multiprocessing extraction
         tar = tarfile.open(tarpath)
+        # tarmembers = tar.getmembers()
+        # pool = Pool(processes=os.cpu_count())
+        # pool.map(
+        #     extract_tar,
+        #     [(tarpath, tarmember, extraction_output_dir) for tarmember in tarmembers]
+        # )
+        # # for tarf, tarmember, od in zip(repeat(tar, len(tarmembers)), tarmembers, repeat(extraction_output_dir, len(tarmembers))):
+        # #     extract_tar(tarf, tarmember, od)
         tar.extractall(path=extraction_output_dir)
         tar.close()
 
@@ -82,19 +99,23 @@ def extract_save(
                 batch.append(img)
                 if len(batch) == batch_size:
                     imgs = [preprocess(img).to(device) for img in batch]
-                    features.append(extractor(torch.stack(imgs)).to('cpu').numpy())
+                    features.append(
+                        extractor(torch.stack(imgs)).to('cpu').numpy())
                     batch = []
-            except Exception:
+            except Exception as e:
+                print(e)
                 continue
         # Process last part of batch
-        imgs = [preprocess(img).to(device) for img in batch]
+        if len(batch) > 0:
+            imgs = [preprocess(img).to(device) for img in batch]
+            features.append(extractor(torch.stack(imgs)).to('cpu').numpy())
 
-        if len(imgs) == 0:
-            print(f"Something went wrong with {tarpath}, so we are skipping it for now...")
+        if len(imgs) == 0 and len(features) == 0:
+            print(
+                f"Something went wrong with {tarpath}, so we are skipping it for now...")
             tarpath.unlink()
             continue
 
-        features.append(extractor(torch.stack(imgs)).to('cpu').numpy())
         features = np.concatenate(features, 0)
 
         # Load features in proto
@@ -111,7 +132,8 @@ def extract_save(
         features.multiplier = MULTIPLIER
 
         # Save feature
-        output_path = output_dir / Path(str(tarpath.name).split(".")[0] + ".pb")
+        output_path = output_dir / \
+            Path(str(tarpath.name).split(".")[0] + ".pb")
         save_features(output_path=output_path, features=features)
 
         # Delete old files

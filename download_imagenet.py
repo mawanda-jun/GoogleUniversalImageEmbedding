@@ -14,22 +14,32 @@ import shutil
 import concurrent.futures
 
 
-def download_extract_save(synset_id: str, output_dir: Path):
-    tarpath = output_dir / Path(synset_id)
+def download_and_save(synset_id: str, output_dir: Path):
+    tarpath = output_dir / Path(synset_id + ".tar")
     if not tarpath.is_file():
         # Download image packet
-        url = f"https://image-net.org/data/winter21_whole/{synset_id}"
-        wget.download(url, str(output_dir), bar=None)
+        url = f"https://image-net.org/data/winter21_whole/{synset_id}.tar"
+        try:
+            wget.download(url, str(output_dir), bar=None)
+        except Exception as e:
+            print(e)
+            print(f"Problems with {url}, deleting file if existing...")
+            if tarpath.is_file:
+                tarpath.unlink()
+    else:
+        print(f"Skipping {tarpath}...")
+        return
+
 
 def main(output_dir: Path):
-    synset_ids = open("synset_id.txt", 'r').read().splitlines()
+    synset_ids = open("synset_ids.txt", 'r').read().splitlines()
     # Find synset already downloaded and remove them from list
     for synset in output_dir.glob("*.pb"):
-        synset_ids.remove(str(synset.name).split(".")[0] + ".tar")
+        synset_ids.remove(str(synset.name).split(".")[0])
 
     # Go on!
     with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as worker:
-        list(tqdm(worker.map(download_extract_save,
+        list(tqdm(worker.map(download_and_save,
             synset_ids,
             repeat(output_dir, len(synset_ids)),
         ), total=len(synset_ids)))
