@@ -1,5 +1,5 @@
 import os
-from features_pb2 import Features
+from utils.features_pb2 import Features
 import numpy as np
 from pathlib import Path
 from multiprocessing.pool import Pool
@@ -21,16 +21,16 @@ def parse_protobuf_file(features_path):
         synset_features = Features()
         synset_features.ParseFromString(data.read())
 
-    mul = np.array(synset_features.multiplier, dtype=np.float32)
-    features = [np.asarray(representation.features, dtype=np.float32) /
-                mul for representation in synset_features.representations]
+    mul = synset_features.multiplier
+    features = [np.asarray(representation.features)
+             for representation in synset_features.representations]
     
     # image_ids = [
-    #     representation.image_id for representation in synset_features.representations]
+        # representation.image_id for representation in synset_features.representations]
 
-    # return features, image_ids
+    return features, mul, features_path
     # Modify return for counting reasons
-    return str(features_path.name).split(".")[0], len(features)
+    # return str(features_path.name).split(".")[0], len(features)
 
 def main(dataset_path: Path):
     list_of_pb = list(dataset_path.glob("*.pb"))
