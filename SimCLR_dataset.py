@@ -32,6 +32,11 @@ class GUIE_Dataset(Dataset):
         self.batch_size = batch_size
         self.idx_map = list(self.synset_ids.keys())
 
+        # Memorize dataset information
+        self.dataset_path = dataset_path
+        self.synset_ids = synset_ids
+
+
     def __len__(self):
         return len(self.synset_ids)
     
@@ -49,6 +54,18 @@ class GUIE_Dataset(Dataset):
                 for negative_index in negative_indexes
         ]
         return positive_features, negative_features
+
+    def on_finish(self):
+        # Reload different section of dataset
+        self.synset_ids = {}
+        with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as worker:
+            synset_features = worker.map(
+                parse_protobuf_file, 
+                [self.dataset_path / Path(synset_id + ".pb") for synset_id in self.synset_ids]
+                )
+            for synset_info in tqdm(synset_features, desc="Loading features in memory...", total=len(self.synset_ids)):
+                synset_features, mul, synset_path = synset_info
+                self.synset_ids[str(synset_path.name).split(".")[0]] = random.choices(synset_features, k=1000)
 
 
 def collate_fn(batch):
