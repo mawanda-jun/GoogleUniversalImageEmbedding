@@ -1,0 +1,24 @@
+# Dataset options
+dataset_path: "/home/mawanda/Documents/GoogleUniversalImageEmbedding/data"
+train_dataset: "/home/mawanda/projects/GoogleUniversalImageEmbedding/dataset_info/train_synset_ids.txt"
+val_dataset: "/home/mawanda/projects/GoogleUniversalImageEmbedding/dataset_info/val_synset_ids.txt"
+multiplier: 10000
+
+# Network options
+in_features: 768
+hidden_features: 512
+out_features: 64
+
+# Training options
+batch_size: 1024
+epochs: 100
+lr: 1.e-4
+weight_decay: 1.0e-6
+optimizer: LARS
+temperature: 0.5
+momentum: 0.
+device: cuda:0
+
+# Checkpoint option
+exp_path: "/home/mawanda/Documents/GoogleUniversalImageEmbedding/experiments/first_trial"
+save_steps: 5

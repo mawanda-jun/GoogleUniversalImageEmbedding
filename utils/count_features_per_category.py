@@ -1,5 +1,5 @@
 import os
-from utils.features_pb2 import Features
+from features_pb2 import Features
 import numpy as np
 from pathlib import Path
 from multiprocessing.pool import Pool
@@ -25,10 +25,11 @@ def parse_protobuf_file(features_path):
     features = [np.asarray(representation.features)
              for representation in synset_features.representations]
     
-    # image_ids = [
-        # representation.image_id for representation in synset_features.representations]
+    image_ids = [
+        representation.image_id for representation in synset_features.representations]
 
-    return features, mul, features_path
+    # return features, mul
+    return features, image_ids, mul
     # Modify return for counting reasons
     # return str(features_path.name).split(".")[0], len(features)
 
