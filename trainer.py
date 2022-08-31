@@ -41,8 +41,14 @@ def main(cfg_path: str):
     # Define model
     model = SimCLRContrastiveLearning(args)
 
-    # Train model
+    # Create model folder
     Path(args["exp_path"]).mkdir(exist_ok=True, parents=True)
+
+    # Save configuration
+    with open(Path(args['exp_path']) / Path("config.yaml"), 'w') as writer:
+        yaml.safe_dump(data=args, strea=writer)
+    
+    # Train model
     model.train(train_loader, val_loader)
 
 if "__main__" in __name__:

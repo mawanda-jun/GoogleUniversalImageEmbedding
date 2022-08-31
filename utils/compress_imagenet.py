@@ -8,19 +8,9 @@ from features_pb2 import Representation, Features
 import torch
 import numpy as np
 import shutil
-from multiprocessing.pool import Pool
+from protobuf_utils import create_pb, save_features
 
 MULTIPLIER = 10000
-
-
-def save_features(output_path: Path, features: Representation):
-    try:
-        with open(output_path, 'wb') as writer:
-            writer.write(features.SerializeToString())
-        # print(f"Saved representation {str(output_path.name)}!")
-    except Exception as e:
-        output_path.unlink()
-        raise Exception(e)
 
 
 def init_CLIP(model_type: str = 'ViT-L/14@336px', device: str = 'cuda'):
@@ -93,20 +83,9 @@ def extract_save(
             continue
 
         features = np.concatenate(features, 0)
-
+        paths = extraction_output_dir.glob("*")
         # Load features in proto
-        representations = []
-        for img_path, features in zip(extraction_output_dir.glob("*"), features):
-            representation = Representation()
-            representation.features.extend(
-                list((features*MULTIPLIER).astype(np.int32)))
-            representation.image_id = str(img_path.name)
-            representations.append(representation)
-
-        features = Features()
-        features.representations.extend(representations)
-        features.multiplier = MULTIPLIER
-
+        features = create_pb(features, paths, MULTIPLIER)
         # Save feature
         output_path = output_dir / \
             Path(str(tarpath.name).split(".")[0] + ".pb")
