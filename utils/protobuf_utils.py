@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import List
-from utils.features_pb2 import Representation, Features
+from .features_pb2 import Representation, Features
 import numpy as np
 
 def create_pb(features: List[np.ndarray], paths: List[Path], multiplier):
@@ -8,8 +8,8 @@ def create_pb(features: List[np.ndarray], paths: List[Path], multiplier):
     representations = []
     for img_path, features in zip(paths, features):
         representation = Representation()
-        representation.features.extend(
-            list((features*multiplier).astype(np.int32)))
+        # representation.features.extend(list((features*multiplier).astype(np.int32)))
+        representation.features.extend(list((features).astype(np.int32)))
         representation.image_id = img_path
         representations.append(representation)
 

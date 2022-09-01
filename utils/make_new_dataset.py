@@ -17,22 +17,36 @@ def process_file(features_file: str, chunk_size: int, out_dir: Path):
         features = create_pb(c_features, c_image_id, mul)
         save_features(out_file, features)
 
-def main():
-    base_path = Path('/home/mawanda/Documents/GoogleUniversalImageEmbedding')
-    features_path = base_path / Path("data")
-    new_features_path = base_path / Path("single_features")
-    new_features_path.mkdir(exist_ok=True, parents=True)
-
+def main(
+    features_path: Path,
+    chunked_features_path: Path,
+    chunk_size: int
+):
     # Gather all features files
     features_files = list(features_path.glob("*.pb"))
     with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as worker:
         _ = list(tqdm(worker.map(
                 process_file,
                 features_files,
-                repeat(10),
-                repeat(new_features_path)
+                repeat(chunk_size),
+                repeat(chunked_features_path)
         ), total=len(features_files)))
-        
+
+def unlink(path: Path): path.unlink()
+
+def delete_dataset(base_path: Path):
+    with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as worker:
+        print("Loading paths...")
+        paths = list(base_path.glob("*.pb"))
+        _ = list(tqdm(worker.map(unlink, paths), total=len(paths)))        
 
 if "__main__" in __name__:
-    main()
+    base_path = Path('/home/mawanda/Documents/GoogleUniversalImageEmbedding')
+    features_path = base_path / Path("data/by_cat")
+    chunked_features_path = base_path / Path("data/by_chunks")
+    chunked_features_path.mkdir(exist_ok=True, parents=True)
+    chunk_size = 2
+    print("Deleting old dataset...")
+    delete_dataset(chunked_features_path)
+    print("Making new dataset...")
+    main(features_path, chunked_features_path, chunk_size)
