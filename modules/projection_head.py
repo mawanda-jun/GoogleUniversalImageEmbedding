@@ -31,6 +31,6 @@ class ProjectionHead(nn.Module):
             ("bn2", BatchNorm1dNoBias(out_features))
         ]
         self.projection = nn.Sequential(OrderedDict(projecton_layers))
-    
+
     def forward(self, h_0, h_1):
         return self.projection(h_0), self.projection(h_1)

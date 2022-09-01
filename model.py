@@ -1,28 +1,16 @@
 from pathlib import Path
 import torch
 import torch.nn as nn
-from modules import ProjectionHead, SimCLR_Loss, LARS
+from modules import ProjectionHead, SimCLR_Loss, init_optim
 from tqdm import tqdm
+from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 
 
 def load_optimizer(args, model) -> torch.optim.Optimizer:
-    if args["optimizer"] == "Adam":
-        optimizer = torch.optim.Adam(model.parameters(), lr=args['lr']) 
-    elif args["optimizer"] == "LARS":
-        # optimized using LARS with linear learning rate scaling
-        # (i.e. LearningRate = 0.3 × BatchSize/256) and weight decay of 10−6.
-        learning_rate = args['lr'] * args["batch_size"] / 256
-        optimizer = LARS(
-            params=model.parameters(),
-            lr=learning_rate,
-            weight_decay=args["weight_decay"],
-            exclude_from_weight_decay=["batch_normalization", "bias"],
-        )
-
-    else:
-        raise NotImplementedError
-
+    # optimized using LARS with linear learning rate scaling
+    # (i.e. LearningRate = 0.3 × BatchSize/256) and weight decay of 10−6.
+    optimizer = init_optim(model=model, args=args)
 
     # "decay the learning rate with the cosine decay schedule without restarts"
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -54,30 +42,42 @@ class SimCLRContrastiveLearning(nn.Module):
         torch.save(self.model.state_dict(), out_path)
 
     def train(self, train_loader, val_loader):
+    #     # Make loaders iterable
+    #     train_loader = iter(train_loader)
+    #     val_loader = iter(val_loader)
+        # Initialize gradscaler
+        scaler = GradScaler()
+
         # Put model in train mode
         self.model.train()
         # Train
-        epochs = tqdm(range(self.args["epochs"]))
+        epochs = tqdm(range(self.args['epochs']))
         for epoch in epochs:
             # Find LR
             lr = self.optimizer.param_groups[0]["lr"]
 
             # Actual training
             epoch_loss = 0.
+            # for train_step in range(self.args['train_minibatches']):
             for (x_i, x_j) in train_loader:
+                # x_i, x_j = next(train_loader)
                 self.optimizer.zero_grad()
                 x_i = x_i.to(self.args["device"], non_blocking=True)
                 x_j = x_j.to(self.args["device"], non_blocking=True)
                 
-                # Positive pair, with encoding
-                z_i, z_j = self.model(x_i, x_j)
-                loss = self.criterion(z_i, z_j)
-                loss.backward()
-                self.optimizer.step()
+                with autocast():
+                    # Positive pair, with encoding
+                    z_i, z_j = self.model(x_i, x_j)
+                    loss = self.criterion(z_i, z_j)
+
+                scaler.scale(loss).backward()
+                scaler.step(self.optimizer)
+                scaler.update()
 
                 # Add loss to epoch
                 epoch_loss += loss.item()
             
+            # epoch_loss /= len(self.args['train_minibatches'])
             epoch_loss /= len(train_loader)
 
             # Print some stat
@@ -98,6 +98,8 @@ class SimCLRContrastiveLearning(nn.Module):
                 # Put model in eval mode
                 self.model.eval()
                 eval_loss = 0.
+                # for val_step in range(self.args['val_minibatches']):
+                #   x_i, x_j = next(val_loader)
                 for (x_i, x_j) in val_loader:
                     x_i = x_i.to(self.args["device"], non_blocking=True)
                     x_j = x_j.to(self.args["device"], non_blocking=True)
