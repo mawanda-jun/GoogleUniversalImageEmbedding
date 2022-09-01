@@ -1,8 +1,11 @@
 # Dataset options
-dataset_path: "/home/mawanda/Documents/GoogleUniversalImageEmbedding/single_features"
+dataset_path: "/home/mawanda/Documents/GoogleUniversalImageEmbedding/data/by_chunks"
 train_dataset: "/home/mawanda/projects/GoogleUniversalImageEmbedding/dataset_info/train_synset_ids.txt"
 val_dataset: "/home/mawanda/projects/GoogleUniversalImageEmbedding/dataset_info/val_synset_ids.txt"
+# Do not modify!
 multiplier: 10000
+train_features: 10520947
+val_features: 2632533
 
 # Network options
 in_features: 768
@@ -10,16 +13,19 @@ hidden_features: 1024
 out_features: 64
 
 # Training options
-batch_size: 1536
-epochs: 15000
-lr: 1.e-3
-weight_decay: 1.0e-6
-optimizer: LARS
-temperature: 0.2
-momentum: 0.
+batch_size: 1950
+epochs: 16000  # ~ batch_size * "epochs" == train_features -> train_features / batch_size  == steps needed for 1 epoch. Now there are ~3 epochs
+lr: 0.3
+weight_decay: 1.0e-4
+momentum: 0.9
+base_optimizer: SGD
+eps: 1.e-8
+trust_coef: 0.001
 device: cuda:0
+temperature: 0.1
+momentum: 0.9
 val_steps: 20
 
 # Checkpoint option
-exp_path: "/home/mawanda/Documents/GoogleUniversalImageEmbedding/experiments/first_trial"
-save_steps: 100
+exp_path: "/home/mawanda/Documents/GoogleUniversalImageEmbedding/experiments/SimCLR-1024-SGD"
+save_steps: 1000

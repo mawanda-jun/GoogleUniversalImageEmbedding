@@ -1,8 +1,7 @@
 import yaml
 from pathlib import Path
-from torch.utils.data import DataLoader
 import os
-from SimCLR_dataset import GUIE_Dataset, collate_fn
+from SimCLR_dataset import GUIE_Dataset, collate_fn, MultiEpochsDataLoader
 from model import SimCLRContrastiveLearning
 
 def main(cfg_path: str):
@@ -14,11 +13,19 @@ def main(cfg_path: str):
     dataset_path = Path(args["dataset_path"])
     train_ids = open(args["train_dataset"], 'r').read().splitlines()
     val_ids = open(args["val_dataset"], 'r').read().splitlines()
-    
-    train_set = GUIE_Dataset(dataset_path, train_ids)
-    val_set = GUIE_Dataset(dataset_path, val_ids)
 
-    train_loader = DataLoader(
+    train_set = GUIE_Dataset(
+        dataset_path, 
+        train_ids, 
+        args['multiplier']
+        )
+    val_set = GUIE_Dataset(
+        dataset_path, 
+        val_ids, 
+        args['multiplier']
+    )
+
+    train_loader = MultiEpochsDataLoader(
         dataset=train_set,
         batch_size=args["batch_size"],
         shuffle=True,
@@ -26,9 +33,10 @@ def main(cfg_path: str):
         collate_fn=collate_fn,
         num_workers=os.cpu_count(),
         pin_memory=True,
+        persistent_workers=True
     )
 
-    val_loader = DataLoader(
+    val_loader = MultiEpochsDataLoader(
         dataset=val_set,
         batch_size=args["batch_size"],
         shuffle=True,
@@ -36,6 +44,7 @@ def main(cfg_path: str):
         collate_fn=collate_fn,
         num_workers=os.cpu_count(),
         pin_memory=True,
+        persistent_workers=True
     )
 
     # Define model
@@ -46,7 +55,7 @@ def main(cfg_path: str):
 
     # Save configuration
     with open(Path(args['exp_path']) / Path("config.yaml"), 'w') as writer:
-        yaml.safe_dump(data=args, strea=writer)
+        yaml.safe_dump(data=args, stream=writer)
     
     # Train model
     model.train(train_loader, val_loader)
