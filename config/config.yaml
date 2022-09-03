@@ -2,10 +2,15 @@
 dataset_path: "/home/mawanda/Documents/GoogleUniversalImageEmbedding/data/by_chunks"
 train_dataset: "/home/mawanda/projects/GoogleUniversalImageEmbedding/dataset_info/train_synset_ids.txt"
 val_dataset: "/home/mawanda/projects/GoogleUniversalImageEmbedding/dataset_info/val_synset_ids.txt"
+epoch_mul: 100  # Needed because the classes are too few and reactivating the dataloader each time consumes much time.
+                # Here we try to fool the dataloader in thinking "longer", thus preventing it from resetting each time.
+                # See implementation in dataset in how it's used
 # Do not modify!
 multiplier: 10000
 train_features: 10520947
+train_synset_ids: 15333
 val_features: 2632533
+val_synset_ids: 3834
 
 # Network options
 in_features: 768
@@ -14,18 +19,23 @@ out_features: 64
 
 # Training options
 batch_size: 1950
-epochs: 16000  # ~ batch_size * "epochs" == train_features -> train_features / batch_size  == steps needed for 1 epoch. Now there are ~3 epochs
-lr: 0.3
+# Optimizer options
+lr: 2.e-2  # 0.3 * batch_size / 256  -> 2.28!! Better 2.e-2
+lars: True
+base_optimizer: SGD  # Adam, OldLARS, SGD
 weight_decay: 1.0e-4
 momentum: 0.9
-base_optimizer: SGD
 eps: 1.e-8
 trust_coef: 0.001
 device: cuda:0
 temperature: 0.1
-momentum: 0.9
-val_steps: 20
+# Various steps
+train_steps: 10
+val_steps: 40
+
+# Consider epoch steps
+epochs: 10
 
 # Checkpoint option
-exp_path: "/home/mawanda/Documents/GoogleUniversalImageEmbedding/experiments/SimCLR-1024-SGD"
-save_steps: 1000
+exp_path: "/home/mawanda/Documents/GoogleUniversalImageEmbedding/experiments/SimCLR-1024-LARS_SGD-asonline"
+save_steps: 200

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Tuple
 import torch
 import torch.nn as nn
 from modules import ProjectionHead, SimCLR_Loss, init_optim
@@ -7,14 +8,14 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 
 
-def load_optimizer(args, model) -> torch.optim.Optimizer:
+def load_optimizer(args, model) -> Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.CosineAnnealingLR]:
     # optimized using LARS with linear learning rate scaling
     # (i.e. LearningRate = 0.3 × BatchSize/256) and weight decay of 10−6.
     optimizer = init_optim(model=model, args=args)
 
     # "decay the learning rate with the cosine decay schedule without restarts"
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, args["epochs"], eta_min=0, last_epoch=-1
+        optimizer, args["train_features"], eta_min=0, last_epoch=-1
     )
 
     return optimizer, scheduler
@@ -42,86 +43,81 @@ class SimCLRContrastiveLearning(nn.Module):
         torch.save(self.model.state_dict(), out_path)
 
     def train(self, train_loader, val_loader):
-    #     # Make loaders iterable
-    #     train_loader = iter(train_loader)
-    #     val_loader = iter(val_loader)
-        # Initialize gradscaler
         scaler = GradScaler()
 
-        # Put model in train mode
-        self.model.train()
-        # Train
-        epochs = tqdm(range(self.args['epochs']))
-        for epoch in epochs:
+        train_loss = 0.
+        
+        steps = tqdm(range(self.args['steps']))
+        for step in steps:
+            step += 1  # Useful for divions and stuff
             # Find LR
             lr = self.optimizer.param_groups[0]["lr"]
 
+            ############
+            # TRAINING #
+            ############
+
+            # Fetch data
+            x_i, x_j = next(train_loader)
+            x_i = x_i.to(self.args["device"], non_blocking=True)
+            x_j = x_j.to(self.args["device"], non_blocking=True)
+
             # Actual training
-            epoch_loss = 0.
-            # for train_step in range(self.args['train_minibatches']):
-            for (x_i, x_j) in train_loader:
-                # x_i, x_j = next(train_loader)
-                self.optimizer.zero_grad()
-                x_i = x_i.to(self.args["device"], non_blocking=True)
-                x_j = x_j.to(self.args["device"], non_blocking=True)
-                
-                with autocast():
-                    # Positive pair, with encoding
-                    z_i, z_j = self.model(x_i, x_j)
-                    loss = self.criterion(z_i, z_j)
-
-                scaler.scale(loss).backward()
-                scaler.step(self.optimizer)
-                scaler.update()
-
-                # Add loss to epoch
-                epoch_loss += loss.item()
+            self.model.train()
+            self.optimizer.zero_grad()
             
-            # epoch_loss /= len(self.args['train_minibatches'])
-            epoch_loss /= len(train_loader)
+            with autocast():
+                z_i, z_j = self.model(x_i, x_j)
+                loss = self.criterion(z_i, z_j)
 
-            # Print some stat
-            epochs.set_description(
-                f"Epoch [{epoch + 1}/{self.args['epochs']}]  TrainLoss: {epoch_loss:.4f}  LR: {lr:.6f}",
-                refresh=False
-                )
+            scaler.scale(loss).backward()
+            scaler.step(self.optimizer)
+            scaler.update()
 
-            # Save infos to writer
-            self.writer.add_scalar("Train/Loss", epoch_loss, epoch)
-            self.writer.add_scalar("Misc/LR", lr, epoch)
+            # Add loss to train loss
+            train_loss += loss.item()
+
+            # Print some info
+            if step % self.args['train_steps'] == 0:
+                # Save infos to writer
+                self.writer.add_scalar("Train/Loss", train_loss / self.args['train_steps'], step)
+                self.writer.add_scalar("Misc/LR", lr, step)
+                steps.set_description(f"TrainLoss: {train_loss / self.args['train_steps']:.4f}  LR: {lr:.6f}", refresh=True)
+                train_loss = 0.
 
             # Update scheduler
             self.scheduler.step()
 
+            ##############
+            # VALIDATION #
+            ##############
+
             # Evaluate if it's time
-            if (epoch+1) % self.args["val_steps"] == 0:
+            if step % self.args["val_steps"] == 0:
+                val_loss = 0.
                 # Put model in eval mode
                 self.model.eval()
-                eval_loss = 0.
-                # for val_step in range(self.args['val_minibatches']):
-                #   x_i, x_j = next(val_loader)
-                for (x_i, x_j) in val_loader:
+                # Iterate over validation set
+                for val_step in range(self.args['val_synset_ids'] // self.args['batch_size']):
+                    x_i, x_j = next(val_loader)
                     x_i = x_i.to(self.args["device"], non_blocking=True)
                     x_j = x_j.to(self.args["device"], non_blocking=True)
                     
-                    # Positive pair, with encoding
                     with torch.no_grad():
                         z_i, z_j = self.model(x_i, x_j)
                         loss: torch.Tensor = self.criterion(z_i, z_j)
                     # Add loss to epoch
-                    eval_loss += loss.item()
+                    val_loss += loss.item()
                 
-                eval_loss /= len(val_loader)
+                val_loss /= (val_step + 1)
                 
                 # Print some stats
-                epochs.set_description(
-                    f"Evaluating: Epoch [{epoch + 1}/{self.args['epochs']}]  ValLoss: {eval_loss:.4f}  LR: {lr:.6f}",
-                    refresh=False
-                )
-                self.writer.add_scalar("Val/Loss", eval_loss, epoch)
+                steps.set_description(f"ValLoss: {val_loss:.4f}", refresh=True)
+                self.writer.add_scalar("Val/Loss", val_loss, step)
 
-            if (epoch+1) % self.args["save_steps"] == 0:
-                self.save_model(epoch)
+            # Save if there is something to save
+            if step % self.args["save_steps"] == 0:
+                self.save_model(step)
             
             # Flush writer
             self.writer.flush()
