@@ -98,11 +98,7 @@ class CustomBatchSampler(Sampler):
 
     def generate_batch(self):
         while True:
-            # random.shuffle(self.real_index)
-            # yield self.real_index[:self.batch_size]
-            # yield np.random.choice(self.real_index, self.batch_size, replace=F alse)
             yield np.random.choice(len(self.dataset.synset_ids), self.batch_size)
-            # yield np.random.sample(self.real_index, self.batch_size)
 
     def __iter__(self):
         return iter(self.generate_batch())
@@ -121,7 +117,7 @@ if "__main__" in __name__:
     dataloader = DataLoader(
         dataset=dataset,
         batch_sampler=CustomBatchSampler(dataset, batch_size),
-        # collate_fn=collate_fn,
+        collate_fn=collate_fn,
         num_workers=10,
         pin_memory=True
     )
