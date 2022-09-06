@@ -5,6 +5,7 @@ import random
 import torch
 from torch.utils.data import Dataset, DataLoader, Sampler
 from tqdm import tqdm
+import numpy as np
 
 from utils import parse_pb
 
@@ -91,7 +92,10 @@ class CustomBatchSampler(Sampler):
 
     def generate_batch(self):
         while True:
-            yield random.sample(self.real_index, self.batch_size)
+            # random.shuffle(self.real_index)
+            # yield self.real_index[:self.batch_size]
+            # yield np.random.choice(self.real_index, self.batch_size, replace=False)
+            yield torch.tensor(np.array(random.sample(self.real_index, self.batch_size)))
 
     def __iter__(self):
         return iter(self.generate_batch())

@@ -66,6 +66,6 @@ def main(cfg_path: str):
     model.train(train_loader, val_loader)
 
 if "__main__" in __name__:
-    cfg_path = "/home/mawanda/projects/GoogleUniversalImageEmbedding/config/config.yaml"
+    cfg_path = "/projects/GoogleUniversalImageEmbedding/config/config.yaml"
     main(cfg_path)
 

@@ -41,7 +41,7 @@ def delete_dataset(base_path: Path):
         _ = list(tqdm(worker.map(unlink, paths), total=len(paths)))        
 
 if "__main__" in __name__:
-    base_path = Path('/home/mawanda/Documents/GoogleUniversalImageEmbedding')
+    base_path = Path('/data/GoogleUniversalImageEmbedding')
     features_path = base_path / Path("data/by_cat")
     chunked_features_path = base_path / Path("data/by_chunks")
     chunked_features_path.mkdir(exist_ok=True, parents=True)
