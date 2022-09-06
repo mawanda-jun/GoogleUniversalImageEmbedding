@@ -35,17 +35,22 @@ class GUIE_Dataset(Dataset):
         self.synset_ids = synset_ids
 
         # Index file by category: keep path/to/cat/chunks together, indexed by synset cat id provided.
-        self.synset_paths = {k: [] for k in synset_ids}
+        synset_paths = {k: [] for k in synset_ids}
         for file in tqdm(all_files, desc='Creating index...', total=6581546):
             cat = str(file.name).split("_")[0]
-            try:
-                self.synset_paths[cat].append(file)
-            except KeyError:
-                # File is not present in this dataset portion, so skip it!
-                continue
+            if cat in synset_paths:
+                synset_paths[cat].append(str(file))
 
         # Create mapping
-        self.idx_mapper = [synset_id for synset_id in self.synset_paths.keys()]
+        # self.idx_mapper = [synset_id for synset_id in synset_paths.keys()]
+        # Avoid memory leak using numpy: https://github.com/pytorch/pytorch/issues/13246#issuecomment-1164905242
+        # All array must have the same length in order to convert them to a numpy matrix
+        max_paths = max([len(v) for v in synset_paths.values()])
+        for k, v in tqdm(synset_paths.items(), desc="Fixing number of paths for the DataFrame..."):
+            synset_paths[k] += [""]*(max_paths - len(v))
+        # Keep only list of lists of paths
+        synset_paths = list(synset_paths.values())
+        self.synset_paths = np.array(synset_paths).astype(np.string_)
     
     def __len__(self):
         return self.mock_length
@@ -61,7 +66,8 @@ class GUIE_Dataset(Dataset):
         #   2 features.
         # - select one of the two features for each file.
         # Now we have two features of the same category, which we are going to return.
-        synset_paths = self.synset_paths[self.idx_mapper[idx]]
+
+        synset_paths = [l.decode() for l in self.synset_paths[idx] if l.decode() != ""]
         selected_synset_paths = random.choices(population=synset_paths, k=2)
         
         features = [random.sample(parse_pb(path)[0], 1)[0] for path in selected_synset_paths]
@@ -87,15 +93,16 @@ class CustomBatchSampler(Sampler):
     def __init__(self, dataset: GUIE_Dataset, batch_size: int):
         self.dataset = dataset
         self.batch_size = batch_size
-        self.real_index = list(range(len(self.dataset.synset_ids)))
-        assert len(self.real_index) >= batch_size, f"Not enough elements for a batch! Please input a batch size <= {len(self.real_index)}"
+        # self.real_index = np.arange(0, len(self.dataset.synset_ids))
+        assert len(dataset) >= batch_size, f"Not enough elements for a batch! Please input a batch size <= {len(self.real_index)}"
 
     def generate_batch(self):
         while True:
             # random.shuffle(self.real_index)
             # yield self.real_index[:self.batch_size]
-            # yield np.random.choice(self.real_index, self.batch_size, replace=False)
-            yield torch.tensor(np.array(random.sample(self.real_index, self.batch_size)))
+            # yield np.random.choice(self.real_index, self.batch_size, replace=F alse)
+            yield np.random.choice(len(self.dataset.synset_ids), self.batch_size)
+            # yield np.random.sample(self.real_index, self.batch_size)
 
     def __iter__(self):
         return iter(self.generate_batch())
@@ -105,12 +112,12 @@ class CustomBatchSampler(Sampler):
 
 if "__main__" in __name__:
     dataset = GUIE_Dataset(
-        dataset_path = Path("/home/mawanda/Documents/GoogleUniversalImageEmbedding/data/by_chunks"),
-        synset_ids = open("/home/mawanda/projects/GoogleUniversalImageEmbedding/dataset_info/train_synset_ids.txt").read().splitlines(),
+        dataset_path = Path("/data/GoogleUniversalImageEmbedding/data/by_chunks"),
+        synset_ids = open("/projects/GoogleUniversalImageEmbedding/dataset_info/train_synset_ids.txt").read().splitlines(),
         multiplier = 10000,
-        epoch_mul=100
+        mock_length = 100000
     )
-    batch_size = 15332
+    batch_size = 153
     dataloader = DataLoader(
         dataset=dataset,
         batch_sampler=CustomBatchSampler(dataset, batch_size),
