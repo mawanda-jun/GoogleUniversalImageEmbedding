@@ -52,10 +52,6 @@ def main(cfg_path: str):
         pin_memory=True
     )
 
-    # Transform loaders into iterators - we don't need them anymore!
-    train_loader = iter(train_loader)
-    val_loader = iter(val_loader)
-
     # Create model folder
     Path(args["exp_path"]).mkdir(exist_ok=True, parents=True)
 

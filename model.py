@@ -45,6 +45,9 @@ class SimCLRContrastiveLearning(nn.Module):
         torch.save(self.model.state_dict(), out_path)
 
     def train(self, train_loader, val_loader):
+        # Transform loaders into iterators - we don't need them anymore!
+        train_loader = iter(train_loader)
+        val_loader = iter(val_loader)
         scaler = GradScaler()
 
         train_loss = 0.
