@@ -149,7 +149,7 @@ class CustomBatchSampler(Sampler):
 
     def generate_batch(self):
         while True:
-            yield np.random.choice(len(self.dataset.synset_ids), self.batch_size)
+            yield np.random.choice(len(self.dataset.synset_ids), self.batch_size, replace=False)
 
     def __iter__(self):
         return iter(self.generate_batch())
