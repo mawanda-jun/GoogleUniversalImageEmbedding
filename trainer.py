@@ -1,7 +1,8 @@
 import yaml
 from pathlib import Path
 import os
-from SimCLR_dataset import GUIE_Dataset, collate_fn, DataLoader, CustomBatchSampler
+from torch.utils.data import DataLoader
+import SimCLR_dataset
 from model import SimCLRContrastiveLearning
 
 def main(cfg_path: str):
@@ -22,13 +23,13 @@ def main(cfg_path: str):
     train_ids = open(args["train_dataset"], 'r').read().splitlines()
     val_ids = open(args["val_dataset"], 'r').read().splitlines()
 
-    train_set = GUIE_Dataset(
+    train_set = SimCLR_dataset.__dict__[args['dataset_type']](
         dataset_path, 
         train_ids, 
         args['multiplier'],
         args['train_features']
         )
-    val_set = GUIE_Dataset(
+    val_set = SimCLR_dataset.__dict__[args['dataset_type']](
         dataset_path, 
         val_ids, 
         args['multiplier'],
@@ -37,16 +38,16 @@ def main(cfg_path: str):
 
     train_loader = DataLoader(
         dataset=train_set,
-        batch_sampler=CustomBatchSampler(train_set, args['batch_size']),
-        collate_fn=collate_fn,
+        batch_sampler=SimCLR_dataset.__dict__['CustomBatchSampler'](train_set, args['batch_size']),
+        collate_fn=train_set.collate_fn,
         num_workers=os.cpu_count(),
         pin_memory=True
     )
 
     val_loader = DataLoader(
         dataset=val_set,
-        batch_sampler=CustomBatchSampler(val_set, args['batch_size']),
-        collate_fn=collate_fn,
+        batch_sampler=SimCLR_dataset.__dict__['CustomBatchSampler'](val_set, args['batch_size']),
+        collate_fn=val_set.collate_fn,
         num_workers=os.cpu_count(),
         pin_memory=True
     )

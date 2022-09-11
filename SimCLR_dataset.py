@@ -10,7 +10,7 @@ import numpy as np
 from utils import parse_pb
 
 
-class GUIE_Dataset(Dataset):
+class GUIE_BaseDataset(Dataset):
     def __init__(
             self, 
             dataset_path: Path, 
@@ -55,7 +55,7 @@ class GUIE_Dataset(Dataset):
     def __len__(self):
         return self.mock_length
 
-    def __getitem__(self, idx):
+    def _get_features(self, idx, num):
         # Rationale of getitem:
         # - idx select which category we are dealing with
         # - from the category, select two random paths: we will extract the features from these two files
@@ -68,29 +68,80 @@ class GUIE_Dataset(Dataset):
         # Now we have two features of the same category, which we are going to return.
 
         synset_paths = [l.decode() for l in self.synset_paths[idx] if l.decode() != ""]
-        selected_synset_paths = random.choices(population=synset_paths, k=2)
+        selected_synset_paths = random.choices(population=synset_paths, k=num)
         
         features = [random.sample(parse_pb(path)[0], 1)[0] for path in selected_synset_paths]
         features = [f.astype(np.float32) / self.multiplier for f in features]
         return features
-        # return idx
+    
 
-def collate_fn(batch):
-    batch = np.asarray(batch)
-    batch_0 = batch[:, 0, ...]
-    batch_1 = batch[:, 1, ...]
-    return torch.tensor(batch_0), torch.tensor(batch_1)
+class GUIE_DualFeatures(GUIE_BaseDataset):
+    def __init__(self, dataset_path: Path, synset_ids: List[str], multiplier: int, mock_length: int):
+        super().__init__(dataset_path, synset_ids, multiplier, mock_length)
 
+    @staticmethod
+    def collate_fn(batch):
+        batch = np.asarray(batch)
+        batch_0 = batch[:, 0, ...]
+        batch_1 = batch[:, 1, ...]
+        return torch.tensor(batch_0), torch.tensor(batch_1)
+
+class GUIE_SingleFeatures(GUIE_BaseDataset):
+    def __init__(self, dataset_path: Path, synset_ids: List[str], multiplier: int, mock_length: int):
+        super().__init__(dataset_path, synset_ids, multiplier, mock_length)
+
+    @staticmethod
+    def collate_fn(batch):
+        batch = np.asarray(batch)
+        return [torch.tensor(batch)]
+
+
+#############################
+# CUSTOM AND USEFUL DATASETS
+#############################
+class SameClassDataset(GUIE_DualFeatures):
+    """
+    Returns two features that comes from the same class. Might be the same feature altogehter
+    (even though it's a quite rare occurrence).
+    """
+    def __init__(self, dataset_path: Path, synset_ids: List[str], multiplier: int, mock_length: int):
+        super().__init__(dataset_path, synset_ids, multiplier, mock_length)
+    
+    def __getitem__(self, idx):
+        features = self._get_features(idx, num=2)
+        return features
+
+class NoiseItemDataset(GUIE_DualFeatures):
+    """
+    Returns one feature and the same feature with some gaussian noise applied.
+    """
+    def __init__(self, dataset_path: Path, synset_ids: List[str], multiplier: int, mock_length: int):
+        super().__init__(dataset_path, synset_ids, multiplier, mock_length)
+
+    def __getitem__(self, idx):
+        features = self._get_features(idx, num=1)[0]
+        # Add random noise
+        noise = np.random.normal(0, 0.1, size=features.shape).astype(features.dtype)
+        return features, features + noise
+
+class SingleItemDataset(GUIE_SingleFeatures):
+    """
+    Returns only one feature, but it's in the same list format for the sake of the training.
+    """
+    def __init__(self, dataset_path: Path, synset_ids: List[str], multiplier: int, mock_length: int):
+        super().__init__(dataset_path, synset_ids, multiplier, mock_length)
+
+    def __getitem__(self, idx):
+        return self._get_features(idx, num=1)[0]
 
 class CustomBatchSampler(Sampler):
     """
-    Create custom batch sampler in order to create a batch of indexes that
-    - are not repeated
+    Create custom batch sampler in order to create a batch of indexes that are not repeated for each batch.
 
     Args:
         Sampler (_type_): _description_
     """
-    def __init__(self, dataset: GUIE_Dataset, batch_size: int):
+    def __init__(self, dataset: GUIE_BaseDataset, batch_size: int):
         self.dataset = dataset
         self.batch_size = batch_size
         # self.real_index = np.arange(0, len(self.dataset.synset_ids))
@@ -107,7 +158,7 @@ class CustomBatchSampler(Sampler):
         return len(self.dataset)
 
 if "__main__" in __name__:
-    dataset = GUIE_Dataset(
+    dataset = GUIE_BaseDataset(
         dataset_path = Path("/data/GoogleUniversalImageEmbedding/data/by_chunks"),
         synset_ids = open("/projects/GoogleUniversalImageEmbedding/dataset_info/train_synset_ids.txt").read().splitlines(),
         multiplier = 10000,
@@ -117,7 +168,7 @@ if "__main__" in __name__:
     dataloader = DataLoader(
         dataset=dataset,
         batch_sampler=CustomBatchSampler(dataset, batch_size),
-        collate_fn=collate_fn,
+        collate_fn=dataset.collate_fn,
         num_workers=10,
         pin_memory=True
     )

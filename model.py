@@ -2,7 +2,8 @@ from pathlib import Path
 from typing import Tuple
 import torch
 import torch.nn as nn
-from modules import ProjectionHead, SimCLR_Loss, init_optim
+from modules import SimCLR_Loss, init_optim
+import modules.projection_head as projection_head
 from tqdm import tqdm
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
@@ -15,7 +16,7 @@ def load_optimizer(args, model) -> Tuple[torch.optim.Optimizer, torch.optim.lr_s
 
     # "decay the learning rate with the cosine decay schedule without restarts"
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, args["train_features"], eta_min=0, last_epoch=-1
+        optimizer, args['steps'], eta_min=0, last_epoch=-1
     )
 
     return optimizer, scheduler
@@ -26,10 +27,11 @@ class SimCLRContrastiveLearning(nn.Module):
         super().__init__()
         self.args = args
         
-        self.model = ProjectionHead(
+        self.model = projection_head.__dict__[self.args['model_type']](
             self.args["in_features"], 
             self.args["hidden_features"],
-            self.args["out_features"]
+            self.args["out_features"],
+            self.args['dropout']
         )
         self.model.to(self.args["device"])
 
@@ -58,16 +60,15 @@ class SimCLRContrastiveLearning(nn.Module):
             ############
 
             # Fetch data
-            x_i, x_j = next(train_loader)
-            x_i = x_i.to(self.args["device"], non_blocking=True)
-            x_j = x_j.to(self.args["device"], non_blocking=True)
+            items = next(train_loader)
+            items = [item.to(self.args["device"], non_blocking=True) for item in items]
 
             # Actual training
             self.model.train()
             self.optimizer.zero_grad()
             
             with autocast():
-                z_i, z_j = self.model(x_i, x_j)
+                z_i, z_j = self.model(items)
                 loss = self.criterion(z_i, z_j)
 
             scaler.scale(loss).backward()
@@ -99,12 +100,11 @@ class SimCLRContrastiveLearning(nn.Module):
                 self.model.eval()
                 # Iterate over validation set
                 for val_step in range(self.args['val_synset_ids'] // self.args['batch_size']):
-                    x_i, x_j = next(val_loader)
-                    x_i = x_i.to(self.args["device"], non_blocking=True)
-                    x_j = x_j.to(self.args["device"], non_blocking=True)
-                    
+                    items = next(val_loader)
+                    items = [item.to(self.args["device"], non_blocking=True) for item in items]
+
                     with torch.no_grad():
-                        z_i, z_j = self.model(x_i, x_j)
+                        z_i, z_j = self.model(items)
                         loss: torch.Tensor = self.criterion(z_i, z_j)
                     # Add loss to epoch
                     val_loss += loss.item()
