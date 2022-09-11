@@ -1,3 +1,4 @@
+from typing import Dict
 from torch.optim import Adam, SGD
 from torchlars import LARS
 
@@ -171,8 +172,7 @@ class OldLARS(Optimizer):
         return True
 
 
-
-def init_optim(model, args):
+def init_optim(model: torch.nn.Module, args: Dict):
     # lr = args['lr'] * args['batch_size'] / 256
     lr = args['lr']
     if args['base_optimizer'] == "Adam":
