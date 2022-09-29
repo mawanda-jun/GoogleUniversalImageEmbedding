@@ -36,6 +36,16 @@ class BaseProjection(nn.Module):
         self.projection = nn.Sequential(OrderedDict(projecton_layers))
 
 
+class SingleProjection(BaseProjection):
+    def __init__(self, in_features, hidden_features, out_features, dropout):
+        super().__init__(in_features, hidden_features, out_features, dropout)
+        
+    
+    def forward(self, item):
+        h_0 = item
+        return self.projection(h_0)
+
+
 class DualProjection(BaseProjection):
     def __init__(self, in_features, hidden_features, out_features, dropout):
         super().__init__(in_features, hidden_features, out_features, dropout)

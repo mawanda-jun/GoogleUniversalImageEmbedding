@@ -8,9 +8,9 @@ def create_pb(features: List[np.ndarray], paths: List[Path], multiplier):
     representations = []
     for img_path, features in zip(paths, features):
         representation = Representation()
-        # representation.features.extend(list((features*multiplier).astype(np.int32)))
-        representation.features.extend(list((features).astype(np.int32)))
-        representation.image_id = img_path
+        representation.features.extend(list((features*multiplier).astype(np.int32)))
+        # representation.features.extend(list(features.astype(np.int32)))
+        representation.image_id = str(img_path)
         representations.append(representation)
 
     features = Features()

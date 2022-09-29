@@ -1,4 +1,4 @@
-from protobuf_utils import parse_pb, create_pb, save_features
+from .protobuf_utils import parse_pb, create_pb, save_features
 import concurrent.futures
 import os
 from tqdm import tqdm
@@ -14,7 +14,7 @@ def process_file(features_file: str, chunk_size: int, out_dir: Path):
     features, image_ids, mul = parse_pb(features_file)
     for i, (c_features, c_image_id) in enumerate(zip(chunks(features, chunk_size), chunks(image_ids, chunk_size))):
         out_file = out_dir / Path(str(features_file.name).split(".")[0] + f"_{i}.pb")
-        features = create_pb(c_features, c_image_id, mul)
+        features = create_pb(c_features, c_image_id, 1)
         save_features(out_file, features)
 
 def main(
@@ -35,15 +35,17 @@ def main(
 def unlink(path: Path): path.unlink()
 
 def delete_dataset(base_path: Path):
-    with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as worker:
-        print("Loading paths...")
-        paths = list(base_path.glob("*.pb"))
-        _ = list(tqdm(worker.map(unlink, paths), total=len(paths)))        
+    for path in tqdm(base_path.glob("*.pb"), total=6581546):
+        path.unlink()
+    # with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as worker:
+    #     print("Loading paths...")
+    #     paths = list(base_path.glob("*.pb"))
+    #     _ = list(tqdm(worker.map(unlink, paths), total=len(paths)))        
 
 if "__main__" in __name__:
-    base_path = Path('/data/GoogleUniversalImageEmbedding')
-    features_path = base_path / Path("data/by_cat")
-    chunked_features_path = base_path / Path("data/by_chunks")
+    base_path = Path('/data/GoogleUniversalImageEmbedding/data/CLIP')
+    features_path = base_path / Path("by_cat")
+    chunked_features_path = base_path / Path("by_chunks")
     chunked_features_path.mkdir(exist_ok=True, parents=True)
     chunk_size = 2
     print("Deleting old dataset...")

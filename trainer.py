@@ -1,3 +1,4 @@
+import argparse
 import yaml
 from pathlib import Path
 import os
@@ -14,9 +15,6 @@ def main(cfg_path: str):
     args['steps'] = args['train_features'] // args['batch_size']
     args['steps'] *= args['epochs']
     args['save_steps'] *= args['epochs']
-
-    # Define model
-    model = SimCLRContrastiveLearning(args)
 
     # Define dataset
     dataset_path = Path(args["dataset_path"])
@@ -59,10 +57,12 @@ def main(cfg_path: str):
     with open(Path(args['exp_path']) / Path("config.yaml"), 'w') as writer:
         yaml.safe_dump(data=args, stream=writer)
     
-    # Train model
-    model.train(train_loader, val_loader)
+    # Define and train model
+    SimCLRContrastiveLearning(args).train(train_loader, val_loader)
 
 if "__main__" in __name__:
-    cfg_path = "/projects/GoogleUniversalImageEmbedding/config/config.yaml"
-    main(cfg_path)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", type=str, help="path/to/config.yaml", default="/projects/GoogleUniversalImageEmbedding/config/config.yaml")
+    args = parser.parse_args()
+    main(args.path)
 

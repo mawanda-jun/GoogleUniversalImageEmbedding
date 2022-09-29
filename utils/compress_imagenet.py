@@ -1,10 +1,10 @@
 from time import sleep
 from CLIP_utils import init_CLIP
+from resnet_utils import init_resnet
 from pathlib import Path
 from tqdm import tqdm
 import tarfile
 from PIL import Image
-from features_pb2 import Representation, Features
 import torch
 import numpy as np
 import shutil
@@ -20,8 +20,7 @@ def extract_tar(args):
 
 
 def extract_save(
-    preprocess,
-    extractor,
+    models,
     output_dir: Path,
     batch_size,
     device
@@ -46,40 +45,41 @@ def extract_save(
         tar.close()
 
         # Read all images in folder
-        # Extract features from folder images
-        batch = []
-        features = []
-        for img in extraction_output_dir.glob("*"):
-            try:
-                img = Image.open(img)
-                batch.append(img)
-                if len(batch) == batch_size:
-                    imgs = [preprocess(img).to(device) for img in batch]
-                    features.append(
-                        extractor(torch.stack(imgs)).to('cpu').numpy())
-                    batch = []
-            except Exception as e:
-                print(e)
+        for model_name, (preprocess, extractor) in models.items():
+            # Extract features from folder images
+            batch = []
+            features = []
+            for img in extraction_output_dir.glob("*"):
+                try:
+                    img = Image.open(img)
+                    batch.append(img)
+                    if len(batch) == batch_size:
+                        imgs = [preprocess(img).to(device) for img in batch]
+                        features.append(
+                            extractor(torch.stack(imgs)).to('cpu').numpy())
+                        batch = []
+                except Exception as e:
+                    print(e)
+                    continue
+            # Process last part of batch
+            if len(batch) > 0:
+                imgs = [preprocess(img).to(device) for img in batch]
+                features.append(extractor(torch.stack(imgs)).to('cpu').numpy())
+
+            if len(imgs) == 0 and len(features) == 0:
+                print(
+                    f"Something went wrong with {tarpath}, so we are skipping it for now...")
+                tarpath.unlink()
                 continue
-        # Process last part of batch
-        if len(batch) > 0:
-            imgs = [preprocess(img).to(device) for img in batch]
-            features.append(extractor(torch.stack(imgs)).to('cpu').numpy())
 
-        if len(imgs) == 0 and len(features) == 0:
-            print(
-                f"Something went wrong with {tarpath}, so we are skipping it for now...")
-            tarpath.unlink()
-            continue
-
-        features = np.concatenate(features, 0)
-        paths = extraction_output_dir.glob("*")
-        # Load features in proto
-        features = create_pb(features, paths, MULTIPLIER)
-        # Save feature
-        output_path = output_dir / \
-            Path(str(tarpath.name).split(".")[0] + ".pb")
-        save_features(output_path=output_path, features=features)
+            features = np.concatenate(features, 0)
+            paths = extraction_output_dir.glob("*")
+            # Load features in proto
+            features = create_pb(features, paths, MULTIPLIER)
+            # Save feature
+            output_path = output_dir / \
+                Path(str(tarpath.name).split(".")[0] + ".pb")
+            save_features(output_path=output_path, features=features)
 
         # Delete old files
         tarpath.unlink()
@@ -101,15 +101,22 @@ def main(
     # - delete image packet
 
     # parse_protobuf_file("/home/mawanda/Documents/GoogleUniversalImageEmbedding/n00015388.pb")
-    preprocess, extractor = init_CLIP(device=device)
+    clip_preprocess, clip_extractor, clip_features = init_CLIP(device=device)
+    resnet_preprocess, resnet_extractor, resnet_features = init_resnet(device=device)
+    
+    models = {
+        # 'CLIP': (clip_preprocess, clip_extractor),
+        'ResNeXt101_32X8D': (resnet_preprocess, resnet_extractor)
+        }
+
     while True:
-        _ = extract_save(preprocess, extractor, output_dir, batch_size, device)
+        _ = extract_save(models, output_dir, batch_size, device)
         print("Now sleeping 1min waiting for new tar...")
-        sleep(60)
+        sleep(10)
 
 
 if "__main__" in __name__:
     batch_size = 256
-    output_dir = Path("/home/mawanda/Documents/GoogleUniversalImageEmbedding")
+    output_dir = Path("/data/GoogleUniversalImageEmbedding/data/ResNeXt101_32X8D/by_cat")
     device = 'cuda'
     main(batch_size, output_dir, device)

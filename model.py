@@ -27,7 +27,7 @@ class SimCLRContrastiveLearning(nn.Module):
         super().__init__()
         self.args = args
         
-        self.model = projection_head.__dict__[self.args['model_type']](
+        self.model: nn.Module = projection_head.__dict__[self.args['model_type']](
             self.args["in_features"], 
             self.args["hidden_features"],
             self.args["out_features"],
@@ -43,6 +43,11 @@ class SimCLRContrastiveLearning(nn.Module):
     def save_model(self, epoch):
         out_path = Path(self.args["exp_path"]) / Path(f"checkpoint_{epoch}.tar")
         torch.save(self.model.state_dict(), out_path)
+    
+    def load_model(self, ckpt_path, device):
+        self.model.to(device)
+        ckpt = torch.load(ckpt_path, map_location=device)
+        self.model.load_state_dict(ckpt)
 
     def train(self, train_loader, val_loader):
         # Transform loaders into iterators - we don't need them anymore!
@@ -53,6 +58,7 @@ class SimCLRContrastiveLearning(nn.Module):
         train_loss = 0.
         
         steps = tqdm(range(self.args['steps']))
+        training_info = {}
         for step in steps:
             step += 1  # Useful for divions and stuff
             # Find LR
@@ -84,9 +90,8 @@ class SimCLRContrastiveLearning(nn.Module):
             # Print some info
             if step % self.args['train_steps'] == 0:
                 # Save infos to writer
-                self.writer.add_scalar("Train/Loss", train_loss / self.args['train_steps'], step)
-                self.writer.add_scalar("Misc/LR", lr, step)
                 steps.set_description(f"TrainLoss: {train_loss / self.args['train_steps']:.4f}  LR: {lr:.6f}", refresh=True)
+                training_info["Train"] = train_loss / self.args['train_steps']
                 train_loss = 0.
 
             # Update scheduler
@@ -116,13 +121,15 @@ class SimCLRContrastiveLearning(nn.Module):
                 
                 # Print some stats
                 steps.set_description(f"ValLoss: {val_loss:.4f}", refresh=True)
-                self.writer.add_scalar("Val/Loss", val_loss, step)
+                training_info["Val"] = val_loss
 
             # Save if there is something to save
             if step % self.args["save_steps"] == 0:
                 self.save_model(step)
-            
-            # Flush writer
+
+            # Add metrics to TB
+            self.writer.add_scalars("Loss", training_info, step)
+            self.writer.add_scalar("Misc/LR", lr, step)
             self.writer.flush()
 
 

@@ -7,4 +7,4 @@ def init_CLIP(model_type: str = 'ViT-L/14@336px', device: str = 'cuda'):
         param.requires_grad = False
 
     def extractor(image): return model.encode_image(image)
-    return preprocess, extractor
+    return preprocess, extractor, 768

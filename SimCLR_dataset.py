@@ -55,7 +55,7 @@ class GUIE_BaseDataset(Dataset):
     def __len__(self):
         return self.mock_length
 
-    def _get_features(self, idx, num):
+    def _get_features(self, idx, num=None):
         # Rationale of getitem:
         # - idx select which category we are dealing with
         # - from the category, select two random paths: we will extract the features from these two files
@@ -68,7 +68,10 @@ class GUIE_BaseDataset(Dataset):
         # Now we have two features of the same category, which we are going to return.
 
         synset_paths = [l.decode() for l in self.synset_paths[idx] if l.decode() != ""]
-        selected_synset_paths = random.choices(population=synset_paths, k=num)
+        if num == None:
+            selected_synset_paths = synset_paths
+        else:
+            selected_synset_paths = random.choices(population=synset_paths, k=num)
         
         features = [random.sample(parse_pb(path)[0], 1)[0] for path in selected_synset_paths]
         features = [f.astype(np.float32) / self.multiplier for f in features]
@@ -94,6 +97,17 @@ class GUIE_SingleFeatures(GUIE_BaseDataset):
     def collate_fn(batch):
         batch = np.asarray(batch)
         return [torch.tensor(batch)]
+
+class GUIE_AllFeatures(GUIE_BaseDataset):
+    def __init__(self, dataset_path: Path, synset_ids: List[str], multiplier: int, mock_length: int):
+        super().__init__(dataset_path, synset_ids, multiplier, mock_length)
+
+    @staticmethod
+    def collate_fn(batch):
+        batch = np.asarray(batch)
+        batch = torch.tensor(batch)
+        batch = torch.cat(batch, 1)
+        return torch.tensor(batch)
 
 
 #############################
@@ -133,6 +147,18 @@ class SingleItemDataset(GUIE_SingleFeatures):
 
     def __getitem__(self, idx):
         return self._get_features(idx, num=1)[0]
+
+
+class EvalDataset(GUIE_AllFeatures):
+    """
+    Returns only one feature, but it's in the same list format for the sake of the training.
+    """
+    def __init__(self, dataset_path: Path, synset_ids: List[str], multiplier: int, mock_length: int):
+        super().__init__(dataset_path, synset_ids, multiplier, mock_length)
+
+    def __getitem__(self, idx):
+        return self._get_features(idx)
+
 
 class CustomBatchSampler(Sampler):
     """
